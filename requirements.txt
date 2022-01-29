@@ -21,3 +21,4 @@ yapf
 six>=1.14
 memoized-property
 termcolor
+python-dotenv
