@@ -4,10 +4,11 @@ setuptools>=26
 twine
 wheel>=0.29
 
-# data science
-numpy
-pandas
-scikit-learn
+# data
+numpy>=1.18
+pandas>=1.2.2
+bs4
+sqlalchemy
 
 # tests/linter
 black
@@ -16,14 +17,7 @@ flake8
 pytest
 yapf
 
-# API
-gcsfs
-google-cloud-storage
-mlflow
-s3fs
-
 # utilities
 six>=1.14
-joblib
 memoized-property
 termcolor
