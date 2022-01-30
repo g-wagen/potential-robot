@@ -9,6 +9,7 @@ numpy>=1.18
 pandas>=1.2.2
 bs4
 sqlalchemy
+mysql
 
 # tests/linter
 black
