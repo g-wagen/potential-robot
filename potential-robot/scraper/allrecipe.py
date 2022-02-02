@@ -8,6 +8,8 @@
 # Afterwards you shall get a dictionary with al the important recipe details.
 # -----------------------------------------------------------------------------
 
+import string
+import unicodedata
 import pandas as pd
 from bs4 import BeautifulSoup
 import requests
@@ -68,74 +70,19 @@ def scrape_one_allrecipe(url: str) -> list:
         #     {...}
         # ]
         # ---------------
-        # Create a first ROUGH ingredients list
-        ingredients_list = []
         ingredients_html = soup.find_all('li', class_='ingredients-item')
-        for i, ingr in enumerate(ingredients_html):
-            ingredient = ingr.get_text()
-            ingr_split = ingredient.split(' ')
-            ingr_split = [x for x in ingr_split if x != '' and x != ' ']
-            for j, item in enumerate(ingr_split):
-                try:
-                    ingr_split[j] = convert_unicode_fractions(
-                        item).strip().lstrip()
-                except (ValueError, TypeError):
-                    ingr_split[j] = item.strip().lstrip()
-            ingredient = ' '.join(ingr_split)
-            ingredients_list.append(ingredient)
+        # Grab the useful ingredients data from the <input> tag and safe myself a big headache
+        for ingr in ingredients_html:
+            amount = ingr.label.input['data-init-quantity']
+            unit = ingr.label.input['data-unit']
+            ingredient = ingr.label.input['data-ingredient']
 
-        # Refine the ingredients list
-        for ing in ingredients_list:
-            # Split each ingredient 'row' when there's a space
-            spl = ing.split(' ')
-            # Assign some default None's
-            amount = None
-            unit = None
-            ingredient = None
+            ing_dict = {'amount': amount,
+                        'unit': unit,
+                        'ingredient': ingredient}
 
-            # Try to detect if the first item is a numeric unit ...
-            try:
-                amount = float(spl[0])
-            except ValueError:
-                # ... but if not it might be an ingredient.
-                ingredient = ' '.join(spl)
-
-            # Units typically used in recipes
-            units_singular = [
-                'cup', 'pound', 'lb', 'ounce', 'oz', 'pint', 'pt', 'teaspoon',
-                'tsp', 'tablespoon', 'tbsp', 'cube', 'g', 'gram', 'link',
-                'slice', 'liter', 'l', 'dl', 'deciliter', 'kg', 'kilogram'
-            ]
-            # Apppend a plural s to the singular units with 3+ characters
-            units_plural = [
-                f'{x}s' for x in units_singular if len(x) >= 3 and x != 'tbsp'
-            ]
-            units = units_singular + units_plural
-
-            # If the second element is a cooking unit (pound, tbsp,etc) ...
-            # then all elements afterwards are ingredients.
-            if spl[1] in units:
-                unit = spl[1]
-                ingredient = ' '.join(spl[2:])
-
-            # Sometimes there's an addition to the numerical unit ...
-            # in form of a container, a can, etc.
-            # If there's a requirement for half a can of a certain volume, ...
-            # we can simply multiply the container size by the needed amount:
-            # like 0.5*(16 ounce can) = 1*(8 ounce can).
-            if '(' in spl[1] and ')' in spl[2]:
-                package_size = float(spl[1].replace('(', ''))
-                package_unit = spl[2].replace(')', '')
-                amount *= package_size
-                unit = package_unit
-                ingredient = ' '.join(spl[3:])
-
-            ing_dict = {
-                'amount': amount,
-                'unit': unit,
-                'ingredient': ingredient
-            }
             ingredients_dict_list.append(ing_dict)
+
     except:
         ingredients_dict_list = None
 
@@ -166,10 +113,10 @@ def scrape_one_allrecipe(url: str) -> list:
     try:
         # Sometimes recipes have some notes. Let's extract them if they're present.
         notes = []
-        notes_html = soup.find('div', class_='recipe-note').children
+        notes_html = soup.find_all('div', class_='recipe-note')
         for note in notes_html:
             try:
-                notes.append(note.find('p').get_text().lstrip().rstrip())
+                notes.append(note.div.p.get_text().lstrip().rstrip())
             except AttributeError:
                 pass
     except AttributeError:
@@ -185,3 +132,4 @@ def scrape_one_allrecipe(url: str) -> list:
     }
 
     return recipe
+
