@@ -146,36 +146,27 @@ def scrape_one_allrecipe(url: str) -> list:
         response = None
         soup = None
 
-    ### Title
-    title = grab_title(soup)
-
-    ### Info box
-    info_box = grab_info_box(soup)
-
-    ### Ingredients
-    ingredients = grab_ingredients(soup)
-
-    ### Rating
-    recipe_rating = grab_rating(soup)
-
-    ### Instructions
-    instructions = grab_instructions(soup)
-
-    ### Optional notes
-    notes = grab_notes(soup)
-
-    ### Nutrition
-    nutrition = grab_nutrition(soup)
-
-    ### Final output dictionary
     recipe = {
-        'title': title,
-        'rating': recipe_rating,
-        'info': info_box,
-        'ingredients': ingredients,
-        'steps': instructions,
-        'notes': notes,
-        'nutrition': nutrition
+        # Title
+        'title': grab_title(soup),
+
+        # Rating
+        'rating': grab_rating(soup),
+
+        # Info box
+        'info': grab_info_box(soup),
+
+        # Nutrition
+        'nutrition': grab_nutrition(soup),
+
+        # Ingredients
+        'ingredients': grab_ingredients(soup),
+
+        # Steps table
+        'steps': grab_instructions(soup),
+
+        # Optional notes
+        'notes': grab_notes(soup),
     }
 
     return recipe
