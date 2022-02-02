@@ -83,7 +83,6 @@ def scrape_one_allrecipe(url: str) -> list:
                         'ingredient': ingredient}
 
             ingredients.append(ing_dict)
-
     except:
         pass
 
@@ -145,3 +144,4 @@ def scrape_one_allrecipe(url: str) -> list:
     }
 
     return recipe
+
