@@ -39,14 +39,15 @@ def scrape_one_allrecipe(url: str) -> list:
         soup = None
 
     ### Title
+    title = ''
     try:
         title = soup.find('h1').get_text()
     except:
-        title = None
+        pass
 
     ### Info box
+    info_box = {}
     try:
-        info_box = {}
         info_headers_html = \
             soup.find_all('div', class_='recipe-meta-item-header')
         info_content_html = \
@@ -57,12 +58,12 @@ def scrape_one_allrecipe(url: str) -> list:
             content = content.get_text().strip()
             info_box[head] = content
     except:
-        info_box = None
+        pass
 
     ### Ingredients
+    # Define a list that will contain dictionaries for each ingredient
+    ingredients = []
     try:
-        # Define a list that will contain dictionaries for each ingredient
-        ingredients_dict_list = []
         # ingredients_dict_list = [
         #     {'amount': float, 'unit': str, 'ingredient': str},
         #     {'amount': float, 'unit': str, 'ingredient': str},
@@ -81,12 +82,12 @@ def scrape_one_allrecipe(url: str) -> list:
                         'unit': unit,
                         'ingredient': ingredient}
 
-            ingredients_dict_list.append(ing_dict)
-
+            ingredients.append(ing_dict)
     except:
-        ingredients_dict_list = None
+        pass
 
     ### Rating
+    recipe_rating = -1
     try:
         # Extract the recipe rating from the source code embedded json script
         first_json_script = soup.find('script',
@@ -96,23 +97,23 @@ def scrape_one_allrecipe(url: str) -> list:
         recipe_rating = df['aggregateRating.ratingValue'].dropna(
         ).values.squeeze().tolist()
     except:
-        recipe_rating = None
+        pass
 
     ### Instructions
+    instructions = []
     try:
-        instructions = []
         instructions_html = soup.find_all('li',
                                           class_='instructions-section-item')
         for ins in instructions_html:
             instructions.append(
                 ins.find('div', class_='paragraph').get_text().strip())
     except:
-        instructions = None
+        pass
 
     ### Optional notes
+    notes = []
     try:
         # Sometimes recipes have some notes. Let's extract them if they're present.
-        notes = []
         notes_html = soup.find_all('div', class_='recipe-note')
         for note in notes_html:
             try:
@@ -120,15 +121,26 @@ def scrape_one_allrecipe(url: str) -> list:
             except AttributeError:
                 pass
     except AttributeError:
-        notes = None
+        pass
+
+    ### Nutrition
+    nutrition = []
+    try:
+        nutrition_html = soup.find_all('section', class_='nutrition-section')
+        for nutri in nutrition_html:
+            foo = nutri.find('div', class_='section-body').contents[0]
+            nutrition.append(foo.lstrip().rstrip())
+    except:
+        pass
 
     ### Final output dictionary
     recipe = {
         'title': title,
         'rating': recipe_rating,
-        'ingredients': ingredients_dict_list,
+        'ingredients': ingredients,
         'steps': instructions,
-        'notes': notes
+        'notes': notes,
+        'nutrition': nutrition
     }
 
     return recipe
