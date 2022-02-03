@@ -7,7 +7,10 @@ wheel>=0.29
 # data
 numpy>=1.18
 pandas>=1.2.2
+html5lib
 bs4
+fake-http-header
+lxml
 sqlalchemy
 mysql-connector-python
 
