@@ -54,9 +54,8 @@ while True:
             real_page_number = int(((page_counter / 64) + 1))
             print('Scraping Page {} of hidemy.name'.format(real_page_number))
             dataframe = tables[0]
-            filtered_proxies = dataframe[((dataframe['Type'] == 'HTTPS') |
-                                         (dataframe['Type'] == 'HTTP, HTTPS'))
-                                         & (dataframe['Anonymity'] == 'High')]
+            filtered_proxies = dataframe[(dataframe['Type'] == 'HTTPS') &
+                                         (dataframe['Anonymity'] == 'High')]
             filtered_proxies = filtered_proxies.drop(
                 ['Country, City', 'Speed', 'Type', 'Anonymity', 'Latest update'],
                 axis=1)
@@ -103,15 +102,14 @@ while True:
     except:
         pass
 
-# Read existing proxies
-proxies_filename = 'working_proxies.json'
-existing_proxies = utils.read_json_list(proxies_filename, key='proxies')
-
 
 # Test existing proxies together with the new proxies
 try:
+    # Read existing proxies
+    proxies_filename = 'working_proxies.json'
+    existing_proxies = utils.read_json_list(proxies_filename, key='proxies')
     first_proxies_list = first_proxies_list + [x for x in existing_proxies]
-except NameError:
+except (NameError, TypeError):
     print("Can't find {}. Skipping.".format(proxies_filename))
 
 
