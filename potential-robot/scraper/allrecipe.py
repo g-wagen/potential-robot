@@ -9,6 +9,7 @@
 # -----------------------------------------------------------------------------
 
 
+import os
 import pandas as pd
 from bs4 import BeautifulSoup
 import requests
@@ -170,3 +171,17 @@ def scrape_one_allrecipe(url: str) -> list:
     }
 
     return recipe
+
+# def save_recipe_json(json_data, some_counter):
+#     filename = f"{some_counter:010d}-{json_data['title'].lower().replace(' ', '_')}.json"
+#     with open(filename, 'w') as j:
+#         json.dump(json_data, j, indent=4)
+
+def save_recipe_json(json_data):
+    filename = f"{json_data['title'].lower().replace(' ', '_')}.json"
+    save_path = os.path.join('/', 'mnt', 'data_projects', 'potential-robot', 'temp', filename)
+    with open(save_path, 'w') as j:
+        json.dump(json_data, j, indent=4)
+
+
+# save_recipe_json(scrape_one_allrecipe('https://www.allrecipes.com/recipe/17080/taco-lasagna-with-noodles/'))
