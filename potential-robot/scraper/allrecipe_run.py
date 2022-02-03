@@ -1,18 +1,40 @@
-import os
 import requests
 from bs4 import BeautifulSoup
 import random
 import time
 from allrecipe import scrape_one_allrecipe, save_recipe_json
 
+import proxy
 
-def random_sleep(x=10, y=60):
-    sleep_time = random.randint(x, y)
-    time.sleep(sleep_time)
+# Grab the proxies
+proxies = proxy.test_proxies(proxy.scrape_proxies())
+num_proxies = len(proxies)
+
+visited = []
+
+def perform_proxy_request(url):
+    while True:
+        # Choose a random proxy
+        proxy_chooser = proxies[random.randint(0, num_proxies - 1)]
+        # Try if it actually works ...
+        try:
+            req = requests.get(
+                url, # The URL
+                headers=proxy.random_header(), # Random Header
+                timeout=3, # 3 second timeout because time is money
+                proxies={'https': proxy_chooser}) # Use https proxy
+            # Break out of the while if it worked!
+            return req
+            break
+        except:
+            # In case it doesn't work just wait a little bit and retry
+            proxy.random_wait(1, 3)
+
 
 def allrecipe_spider(base_url):
     print(f'Base URL: {base_url}')
-    response = requests.get(base_url)
+    # response = requests.get(base_url, headers=proxy.random_header())
+    response = perform_proxy_request(base_url)
     parsed_html = BeautifulSoup(response.content, 'html.parser')
     base_url_links = parsed_html.find_all('a')
 
@@ -21,7 +43,8 @@ def allrecipe_spider(base_url):
     for a in base_url_links:
         try:
             url = a['href']
-            if url.startswith('https://www.allrecipes.com/recipe'):
+            if url.startswith('https://www.allrecipes.com/recipe') \
+                and 'page=' not in url and '#' not in url:
                 unique_urls.append(url)
         except:
             pass
@@ -45,11 +68,16 @@ def allrecipe_spider(base_url):
         sleep_time = random.randint(2, 5)
         time.sleep(sleep_time)
         print(rec)
-        scraped = scrape_one_allrecipe(rec)
-        save_recipe_json(scraped)
+        if rec not in visited:
+            scraped = scrape_one_allrecipe(rec)
+            save_recipe_json(scraped)
+            visited.append(rec)
+            # allrecipe_spider(rec)
 
     for col in collections:
-        allrecipe_spider(col)
+        if col not in visited:
+            visited.append(col)
+            allrecipe_spider(col)
             # allrecipe_spider(url)
         # print(url.split('/'))
     #     try:

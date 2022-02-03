@@ -9,11 +9,13 @@
 # -----------------------------------------------------------------------------
 
 
+import string
 import os
 import pandas as pd
 from bs4 import BeautifulSoup
 import requests
 import json
+import hashlib
 
 
 def grab_title(parsed_html):
@@ -151,6 +153,9 @@ def scrape_one_allrecipe(url: str) -> list:
         # Title
         'title': grab_title(soup),
 
+        # URL
+        'url': url,
+
         # Rating
         'rating': grab_rating(soup),
 
@@ -170,18 +175,40 @@ def scrape_one_allrecipe(url: str) -> list:
         'notes': grab_notes(soup),
     }
 
+    # recipe_hash = hashlib.md5(recipe)
+
     return recipe
 
-# def save_recipe_json(json_data, some_counter):
-#     filename = f"{some_counter:010d}-{json_data['title'].lower().replace(' ', '_')}.json"
-#     with open(filename, 'w') as j:
-#         json.dump(json_data, j, indent=4)
-
 def save_recipe_json(json_data):
-    filename = f"{json_data['title'].lower().replace(' ', '_')}.json"
-    save_path = os.path.join('/', 'mnt', 'data_projects', 'potential-robot', 'temp', filename)
+    # Sanitize the filename
+    valid_chars = string.ascii_lowercase + string.digits + '_'
+    filename = json_data['title'].lower().lstrip().rstrip().replace(' ', '_')
+    filename = ''.join([x for x in filename if x in valid_chars])
+    filename = f'{filename}.json'
+
+    # Store the json file
+    save_path = os.path.join('/', 'mnt', 'data_projects', 'potential-robot',
+                             'temp', filename)
     with open(save_path, 'w') as j:
         json.dump(json_data, j, indent=4)
 
+import json
 
-# save_recipe_json(scrape_one_allrecipe('https://www.allrecipes.com/recipe/17080/taco-lasagna-with-noodles/'))
+recipe_no_hash = {
+    'url': 'https://www.freecodecamp.org/news/md5-vs-sha-1-vs-sha-2-which-is-the-most-secure-encryption-hash-and-how-to-check-them/',
+    'title': 'MD5 vs SHA-1 vs SHA-2 - Which is the Most Secure Encryption Hash and How to Check Them',
+    'author': 'Jeff',
+    'rating': 3.4
+    }
+
+recipe_json = json.dumps(recipe_no_hash, sort_keys=True).encode('utf-8')
+recipe_hash = hashlib.md5(recipe_json).hexdigest()
+recipe_no_hash['md5'] = recipe_hash
+
+# Check recipe hash
+recipe_with_hash = json.dumps(recipe_no_hash, sort_keys=True).encode('utf-8')
+recipe_hash = hashlib.md5(recipe_json).hexdigest()
+
+
+recipe_json = json.dumps(recipe_no_hash).encode('utf-8')
+print(hashlib.md5(recipe_json).hexdigest() == recipe_hash)
