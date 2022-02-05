@@ -1,5 +1,7 @@
 import json
 import multiprocessing
+import os
+import pickle
 import random
 import time
 from functools import partial
@@ -7,7 +9,6 @@ from functools import partial
 import pandas as pd
 import requests
 from fake_http_header import FakeHttpHeader
-
 
 ### Helper functions
 
@@ -103,11 +104,12 @@ def scrape_proxies():
                 scraped_proxies += make_ip(filtered_proxies)
 
                 page_counter += 1
-                random_wait(1, 4)
+                # random_wait(1, 3)
             else:
                 break
         except:
-            random_wait(1, 3)
+            pass
+            # random_wait(1, 3)
 
     print('Gathering proxies from hidemy.name')
     page_counter = 0
@@ -130,11 +132,12 @@ def scrape_proxies():
                 scraped_proxies += make_ip(filtered_proxies)
 
                 page_counter += 64
-                random_wait(2, 7)
+                # random_wait(1, 3)
             else:
                 break
         except:
-            random_wait(2, 4)
+            pass
+            # random_wait(1, 3)
 
     print('Gathering proxies from free-proxy-list.net')
     while True:
@@ -153,7 +156,8 @@ def scrape_proxies():
             scraped_proxies += make_ip(filtered_proxies)
             break
         except:
-            random_wait(1, 3)
+            pass
+            # random_wait(1, 3)
 
     print('Gathering proxies from proxyscan.io')
     while True:
@@ -168,12 +172,57 @@ def scrape_proxies():
     return scraped_proxies
 
 def test_proxies(proxies_list):
+    print('Testing proxies')
     # Test if the proxies work
     pool = multiprocessing.Pool()
-    tested_proxies = pool.map(
-        partial(try_proxy, timeout=7), proxies_list)
+    with multiprocessing.Pool(os.cpu_count()) as pool:
+        tested_proxies = pool.map(partial(try_proxy, timeout=7), proxies_list)
     working_proxies_list = [x for x in tested_proxies if x is not None]
 
     return working_proxies_list
 
+def perform_proxy_request(url, proxies):
+    start_time = time.time()
+    while True and time.time() - start_time < 20:
+        # Choose a random proxy
+        proxy_chooser = proxies[random.randint(0, len(proxies) - 1)]
+        # Try if it actually works ...
+        try:
+            req = requests.get(
+                url, # The URL
+                headers=random_header(), # Random Header
+                timeout=3, # 3 second timeout because time is money
+                proxies={'https': proxy_chooser}) # Use https proxy
+            # Break out of the while if it worked!
+            return req
+            break
+        except:
+            # In case it doesn't work just wait a little bit and retry
+            random_wait(1, 3)
+    print("No response within 20 seconds. Terminating!")
+    return None
 
+def pickler(filename):
+    unpickled = None
+    def prox_pickle(filename):
+        with open(filename, 'wb') as f:
+            generate_proxies = test_proxies(scrape_proxies())
+            pickle.dump(generate_proxies, f)
+
+    def prox_unpickle(filename):
+        with open(filename, 'rb') as f:
+            return pickle.load(f)
+
+    if not os.path.exists(filename):
+        print(f'Proxies file does not exists: {filename}. Generating ...')
+        prox_pickle(filename)
+
+    try:
+        unpickled = prox_unpickle(filename)
+        print(f'Read existing proxies file: {filename}')
+    except:
+        print(f'Broken proxies file: {filename}. Regenerating ...')
+        prox_pickle(filename)
+        unpickled = prox_unpickle(filename)
+
+    return unpickled

@@ -18,6 +18,38 @@ import json
 import hashlib
 
 
+# -----------------------------------------------------------------------------
+# Hashing
+# -----------------------------------------------------------------------------
+
+def generate_dict_md5hash(input_dict):
+    """Generate an md5 hash for a dictionary"""
+    # # Remove an existing hash if there is one
+    # if input_dict.get('md5'):
+    #     input_dict.pop('md5')
+
+    # To generate a hash for input_dict it
+    # has to be converted to text form.
+    # Let's use json to help us.
+    input_dict_text = json.dumps(input_dict).encode('utf-8')
+    input_dict_hash = hashlib.md5(input_dict_text).hexdigest()
+
+    return input_dict_hash
+
+def insert_md5hash_to_dict(input_dict, hash):
+    input_dict['md5'] = hash
+    return input_dict
+
+def check_recipe_md5hash(input_dict):
+    new_md5 = generate_dict_md5hash(input_dict)
+    # Try to fetch the md5 hash from the database.
+    # If a previous hash exists then compare both hashes.
+
+
+# -----------------------------------------------------------------------------
+# Recipe scraping
+# -----------------------------------------------------------------------------
+
 def grab_title(parsed_html):
     title = ''
     try:
@@ -175,7 +207,9 @@ def scrape_one_allrecipe(url: str) -> list:
         'notes': grab_notes(soup),
     }
 
-    # recipe_hash = hashlib.md5(recipe)
+    # Generate a md5 hash for the recipe
+    hash = generate_dict_md5hash(recipe)
+    recipe = insert_md5hash_to_dict(recipe, hash)
 
     return recipe
 
@@ -191,24 +225,3 @@ def save_recipe_json(json_data):
                              'temp', filename)
     with open(save_path, 'w') as j:
         json.dump(json_data, j, indent=4)
-
-import json
-
-recipe_no_hash = {
-    'url': 'https://www.freecodecamp.org/news/md5-vs-sha-1-vs-sha-2-which-is-the-most-secure-encryption-hash-and-how-to-check-them/',
-    'title': 'MD5 vs SHA-1 vs SHA-2 - Which is the Most Secure Encryption Hash and How to Check Them',
-    'author': 'Jeff',
-    'rating': 3.4
-    }
-
-recipe_json = json.dumps(recipe_no_hash, sort_keys=True).encode('utf-8')
-recipe_hash = hashlib.md5(recipe_json).hexdigest()
-recipe_no_hash['md5'] = recipe_hash
-
-# Check recipe hash
-recipe_with_hash = json.dumps(recipe_no_hash, sort_keys=True).encode('utf-8')
-recipe_hash = hashlib.md5(recipe_json).hexdigest()
-
-
-recipe_json = json.dumps(recipe_no_hash).encode('utf-8')
-print(hashlib.md5(recipe_json).hexdigest() == recipe_hash)
