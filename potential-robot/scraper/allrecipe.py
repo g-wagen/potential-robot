@@ -9,12 +9,46 @@
 # -----------------------------------------------------------------------------
 
 
+import string
 import os
 import pandas as pd
 from bs4 import BeautifulSoup
 import requests
 import json
+import hashlib
 
+
+# -----------------------------------------------------------------------------
+# Hashing
+# -----------------------------------------------------------------------------
+
+def generate_dict_md5hash(input_dict):
+    """Generate an md5 hash for a dictionary"""
+    # # Remove an existing hash if there is one
+    # if input_dict.get('md5'):
+    #     input_dict.pop('md5')
+
+    # To generate a hash for input_dict it
+    # has to be converted to text form.
+    # Let's use json to help us.
+    input_dict_text = json.dumps(input_dict).encode('utf-8')
+    input_dict_hash = hashlib.md5(input_dict_text).hexdigest()
+
+    return input_dict_hash
+
+def insert_md5hash_to_dict(input_dict, hash):
+    input_dict['md5'] = hash
+    return input_dict
+
+def check_recipe_md5hash(input_dict):
+    new_md5 = generate_dict_md5hash(input_dict)
+    # Try to fetch the md5 hash from the database.
+    # If a previous hash exists then compare both hashes.
+
+
+# -----------------------------------------------------------------------------
+# Recipe scraping
+# -----------------------------------------------------------------------------
 
 def grab_title(parsed_html):
     title = ''
@@ -151,6 +185,9 @@ def scrape_one_allrecipe(url: str) -> list:
         # Title
         'title': grab_title(soup),
 
+        # URL
+        'url': url,
+
         # Rating
         'rating': grab_rating(soup),
 
@@ -170,18 +207,21 @@ def scrape_one_allrecipe(url: str) -> list:
         'notes': grab_notes(soup),
     }
 
+    # Generate a md5 hash for the recipe
+    hash = generate_dict_md5hash(recipe)
+    recipe = insert_md5hash_to_dict(recipe, hash)
+
     return recipe
 
-# def save_recipe_json(json_data, some_counter):
-#     filename = f"{some_counter:010d}-{json_data['title'].lower().replace(' ', '_')}.json"
-#     with open(filename, 'w') as j:
-#         json.dump(json_data, j, indent=4)
-
 def save_recipe_json(json_data):
-    filename = f"{json_data['title'].lower().replace(' ', '_')}.json"
-    save_path = os.path.join('/', 'mnt', 'data_projects', 'potential-robot', 'temp', filename)
+    # Sanitize the filename
+    valid_chars = string.ascii_lowercase + string.digits + '_'
+    filename = json_data['title'].lower().lstrip().rstrip().replace(' ', '_')
+    filename = ''.join([x for x in filename if x in valid_chars])
+    filename = f'{filename}.json'
+
+    # Store the json file
+    save_path = os.path.join('/', 'mnt', 'data_projects', 'potential-robot',
+                             'temp', filename)
     with open(save_path, 'w') as j:
         json.dump(json_data, j, indent=4)
-
-
-# save_recipe_json(scrape_one_allrecipe('https://www.allrecipes.com/recipe/17080/taco-lasagna-with-noodles/'))
