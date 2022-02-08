@@ -13,6 +13,7 @@ fake-http-header
 lxml
 sqlalchemy
 mysql-connector-python
+psycopg2
 
 # tests/linter
 black

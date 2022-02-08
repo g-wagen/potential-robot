@@ -1,31 +1,55 @@
+import requests
 from bs4 import BeautifulSoup
-import time
+
+import helpers
 import proxy
-from allrecipe import save_recipe_json, scrape_one_allrecipe
+import allrecipe
 
 # Grab the proxies
 pickled_proxies = 'proxies.pickle'
-proxies = proxy.pickler(pickled_proxies)
+proxies = helpers.pickler(pickled_proxies, data=proxy.test_proxies(proxy.scrape_proxies()))
 
 visited = []
 
-# TODO: Try incorporating pagination!
+def allrecipes_page_exists(url):
+    """
+    Check if the url exists by reporting success
+    if the returned status code x is: x < 400
+    """
+    response = requests.get(url, headers=proxy.random_header())
+    return False if response.status_code > 399 else True
+
+def allrecipes_main_categories():
+    """Fetch the main recipe categories from allrecipes"""
+    output = []
+    response = requests.get('https://www.allrecipes.com/recipes/', headers=proxy.random_header())
+    parsed_html = BeautifulSoup(response.content, 'html.parser')
+    recipe_categories = parsed_html.find_all('a', class_='recipeCarousel__link')
+    for c in recipe_categories:
+        try:
+            output.append(c['href'])
+        except:
+            pass
+    return output
+
+def reset_allrecipe_spider():
+    random_base_url = helpers.random_list_choice(allrecipes_main_categories())
+    print(f'Stuck! No reponse received. Using {random_base_url} as the new base url ...')
+    allrecipe_spider(random_base_url)
 
 def allrecipe_spider(base_url):
-    # default_pages = [
-    #     'https://www.allrecipes.com/recipes/80/main-dish/',
-    #     'https://www.allrecipes.com/recipes/78/breakfast-and-brunch/'
-    # ]
-    print(f'Base URL: {base_url}')
-    response = proxy.perform_proxy_request(base_url, proxies)
+    print(f'Gathering recipes: {base_url}')
+    response = proxy.perform_proxy_request(base_url, proxies, 60)
     if not response:
-        # TODO: MAKE THIS RESET LOGIC SMARTER
-        print('No reponse received. Reset to another page')
-        allrecipe_spider('https://www.allrecipes.com/recipes/')
+        reset_allrecipe_spider()
     else:
-        print('Connected ... scraping now ... ')
+        # print('Connected ... scraping now ... ')
         parsed_html = BeautifulSoup(response.content, 'html.parser')
-        base_url_links = parsed_html.find_all('a')#, class_='card__titleLink')
+
+        base_url_links = []
+
+        for link in parsed_html.find_all('a'):
+            base_url_links.append(link)
 
         # Keep only URLs that contain recipes or recipe collections
         unique_urls = []
@@ -36,7 +60,7 @@ def allrecipe_spider(base_url):
                 unique_urls.append(url)
                 if url.startswith('https://www.allrecipes.com/recipe'):
                     unique_urls.append(url)
-                print(url)
+                # print(url)
             except:
                 pass
 
@@ -65,11 +89,11 @@ def allrecipe_spider(base_url):
                 pass
 
         for r_url in recipes:
-            proxy.random_wait(1, 3)
-            print(r_url)
+            helpers.random_wait(1, 3)
             if r_url not in visited:
-                scraped = scrape_one_allrecipe(r_url)
-                save_recipe_json(scraped)
+                print(f'Scraping {r_url}')
+                scraped = allrecipe.scrape_one_allrecipe(r_url)
+                allrecipe.save_recipe_json(scraped)
                 visited.append(r_url)
 
         for c_url in collections:
@@ -77,4 +101,4 @@ def allrecipe_spider(base_url):
                 visited.append(c_url)
                 allrecipe_spider(c_url)
 
-allrecipe_spider('https://www.allrecipes.com')
+allrecipe_spider('https://www.allrecipes.com/recipes/17562/dinner/')

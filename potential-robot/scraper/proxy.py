@@ -1,8 +1,5 @@
-import json
 import multiprocessing
 import os
-import pickle
-import random
 import time
 from functools import partial
 
@@ -10,23 +7,25 @@ import pandas as pd
 import requests
 from fake_http_header import FakeHttpHeader
 
+import helpers
+
 ### Helper functions
 
 def random_header():
+    """Generates a random HTTP requests header"""
     return FakeHttpHeader().as_header_dict()
 
-def random_wait(a, b):
-    time.sleep(round(random.uniform(a, b), 2))
-
 def try_proxy(proxy, timeout=5):
+    """Checks if a proxy works before the timeout is reached"""
     try:
         requests.get('https://httpbin.org/ip',
-                     proxies={'http': proxy, 'https': proxy}, timeout=timeout)
+                     proxies={'https': proxy}, timeout=timeout)
         return proxy
     except:
         pass
 
 def make_ip(li):
+    """Returns a list of ip:port strings from the input"""
     out = []
     try:
         for ip, port in zip(li['IP Address'], li['Port']):
@@ -34,23 +33,6 @@ def make_ip(li):
         return out
     except:
         return ""
-
-def read_json_list(filename, key=False):
-    data = None
-    try:
-        with open(filename, 'r') as f:
-            data = json.load(f)
-        return data[key] if key else data
-    except FileNotFoundError:
-        print("File {} not found".format(filename))
-
-
-def write_json_list(filename, data):
-    try:
-        with open(filename, 'w') as f:
-            json.dump(data, f, indent=2)
-    except FileNotFoundError:
-        print("File {} not found".format(filename))
 
 def save_proxies_list(filename, proxies_list):
     existing_proxies = []
@@ -172,8 +154,8 @@ def scrape_proxies():
     return scraped_proxies
 
 def test_proxies(proxies_list):
+    """Test if the proxies work"""
     print('Testing proxies')
-    # Test if the proxies work
     pool = multiprocessing.Pool()
     with multiprocessing.Pool(os.cpu_count()) as pool:
         tested_proxies = pool.map(partial(try_proxy, timeout=7), proxies_list)
@@ -181,11 +163,17 @@ def test_proxies(proxies_list):
 
     return working_proxies_list
 
-def perform_proxy_request(url, proxies):
+def perform_proxy_request(url, proxies, timeout):
+    """
+    Wrapper for requests.get() that will use a random proxy
+    and an additional timer to avoid getting stuck.
+    """
+    # Start a timer to prevent getting stuck and
+    # set this timer to X seconds
     start_time = time.time()
-    while True and time.time() - start_time < 20:
+    while True and time.time() - start_time < timeout:
         # Choose a random proxy
-        proxy_chooser = proxies[random.randint(0, len(proxies) - 1)]
+        proxy_chooser = helpers.random_list_choice(proxies)
         # Try if it actually works ...
         try:
             req = requests.get(
@@ -198,31 +186,6 @@ def perform_proxy_request(url, proxies):
             break
         except:
             # In case it doesn't work just wait a little bit and retry
-            random_wait(1, 3)
-    print("No response within 20 seconds. Terminating!")
+            helpers.random_wait(1, 3)
+    print(f"No response within {timeout} seconds. Terminating!")
     return None
-
-def pickler(filename):
-    unpickled = None
-    def prox_pickle(filename):
-        with open(filename, 'wb') as f:
-            generate_proxies = test_proxies(scrape_proxies())
-            pickle.dump(generate_proxies, f)
-
-    def prox_unpickle(filename):
-        with open(filename, 'rb') as f:
-            return pickle.load(f)
-
-    if not os.path.exists(filename):
-        print(f'Proxies file does not exists: {filename}. Generating ...')
-        prox_pickle(filename)
-
-    try:
-        unpickled = prox_unpickle(filename)
-        print(f'Read existing proxies file: {filename}')
-    except:
-        print(f'Broken proxies file: {filename}. Regenerating ...')
-        prox_pickle(filename)
-        unpickled = prox_unpickle(filename)
-
-    return unpickled
