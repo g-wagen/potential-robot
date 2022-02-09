@@ -1,4 +1,6 @@
+from tkinter import INSERT
 from urllib import response
+from wsgiref import headers
 import requests
 from bs4 import BeautifulSoup
 from proxy import random_header
@@ -9,6 +11,7 @@ import pandas as pd
 import allrecipe
 import json
 import string
+import numpy as np
 
 dotenv.load_dotenv()
 
@@ -57,23 +60,6 @@ def auto_increment_bitio_column(table):
 
 
 
-def recipe_add(recipe):
-    bitio_repo = os.environ.get('BIT_REPO')
-    title = recipe.get('title')
-    url = recipe.get('url')
-    rating = recipe.get('rating')
-    hash = recipe.get('md5')
-    recipe_table = 'recipe'
-    increment = auto_increment_bitio_column('recipe')
-    engine = sqlalchemy.create_engine(os.environ.get('BIT_CON'), isolation_level='AUTOCOMMIT')
-    with engine.connect() as conn:
-        # recipe table
-        sql_statement = f'INSERT INTO "{bitio_repo}"."{recipe_table}" (id, name, url, rating, hash) VALUES ({increment}, \'{title}\', \'{url}\', {rating}, \'{hash}\');'
-        sql_statement = sqlalchemy.text(sql_statement)
-        conn.execute(sql_statement)
-
-    return increment
-
 def recipe_exists(recipe):
     engine = sqlalchemy.create_engine(os.environ.get('BIT_CON'), isolation_level='AUTOCOMMIT')
     bitio_repo = os.environ.get('BIT_REPO')
@@ -106,13 +92,10 @@ def recipe_changed(recipe):
 
     return new_hash != old_hash
 
-
-
-
-def truncate(connection):
+def clear_tables(connection):
     """Function clears all tables you give it.
     USE JUST FOR TESTING OR RISK WIPING EVERYTHING!"""
-    for t in ['notes', 'recipe', 'steps', 'nutrition', 'recipe_info', 'nutrition']:
+    for t in ['notes', 'recipe', 'steps', 'nutrition', 'recipe_info', 'nutrition', 'ingredients', 'recipe_ingredients']:
         sql_statement = f'TRUNCATE TABLE "betonk/potential-robot"."{t}";'
         connection.execute(sqlalchemy.text(sql_statement))
 
@@ -127,6 +110,15 @@ def auto_increment(connection, table):
     increment = cur_cnt + 1
     return increment
 
+def sanitize_quotes(input_str):
+    return input_str.replace("'", "").replace('"', '')
+
+def get_table_columns(connection, table):
+    # ', '.join([f'"{x}"' for x in ['col1', 'col2', 'col3']])
+    cols = list(pd.read_sql(f'SELECT * FROM {table} WHERE 1=2;', connection).columns)
+    cols = ', '.join([f'"{x}"' for x in cols])
+    return cols
+
 def add_recipe(recipe):
     engine = sqlalchemy.create_engine(os.environ.get('BIT_CON'), isolation_level='AUTOCOMMIT')
     bitio_repo = os.environ.get('BIT_REPO')
@@ -135,13 +127,18 @@ def add_recipe(recipe):
            'steps': 'steps',
            'notes': 'notes',
            'info': 'recipe_info',
-           'nutri': 'nutrition'}
+           'nutri': 'nutrition',
+           'ingr': 'ingredients',
+           'reci_ingr': 'recipe_ingredients'}
 
     with engine.connect() as conn:
-        # TODO: This function is getting a bit too big.
-        # TODO: Separate all these code blocks into functions.
+        # TODO: 1. This code is horrible. A lot of stuff repeats here.
+        # TODO: 2. Separate all these code blocks into functions.
+        # TODO: 3. ???
+        # TODO: 4. Profit!
+
         ##### Clear tables
-        truncate(conn)
+        clear_tables(conn)
 
         ##### Tables
         recipe_table = f'"{bitio_repo}"."{tables.get("recipe")}"' # Recipes
@@ -149,6 +146,8 @@ def add_recipe(recipe):
         steps_table = f'"{bitio_repo}"."{tables.get("steps")}"' # Steps
         notes_table = f'"{bitio_repo}"."{tables.get("notes")}"' # Notes
         nutrition_table = f'"{bitio_repo}"."{tables.get("nutri")}"' # Nutrition
+        ingredients_table = f'"{bitio_repo}"."{tables.get("ingr")}"' # Ingredients
+        recipe_ingredients_table = f'"{bitio_repo}"."{tables.get("reci_ingr")}"' # Recipe Ingredients
 
         # ---------------------------------------------------------------------
         ##### Recipe table
@@ -157,12 +156,12 @@ def add_recipe(recipe):
         rating = recipe.get('rating')
         hash = recipe.get('md5')
         recipe_id = auto_increment(conn, recipe_table) # Recipe ID
-        recipe_cols = ['id', 'name', 'url', 'rating', 'hash']
-        recipe_old_vals = [recipe_id, title, url, rating, hash]
+        recipe_cols = get_table_columns(conn, recipe_table)
+        recipe_old_vals = [recipe_id, sanitize_quotes(title), url, rating, hash]
 
         # Build recipe SQL
         rcp_vals = [x if type(x) == type(1) or type(x) == type(1.1) else f"'{x}'" for x in recipe_old_vals]
-        recipe_cols = f"{', '.join([str(x) for x in recipe_cols])}"
+        # recipe_cols = f"{', '.join([str(x) for x in recipe_cols])}"
         rcp_vals = f"{', '.join([str(x) for x in rcp_vals])}"
         recipe_row_sql_str = f'INSERT INTO {recipe_table} ({recipe_cols}) VALUES ({rcp_vals});'
 
@@ -173,16 +172,16 @@ def add_recipe(recipe):
         # ---------------------------------------------------------------------
         ##### Steps table
         steps = recipe.get('steps')
-        step_cols = ['recipe_id', 'step_num', 'step']
+        step_cols = get_table_columns(conn, steps_table)
 
         # Build steps SQL
         step_vals = []
         for s, step in enumerate(steps, 1):
-            old_row = [recipe_id, s, step]
+            old_row = [recipe_id, s, sanitize_quotes(step)]
             row = [x if type(x) == type(1) or type(x) == type(1.1) else f"'{x}'" for x in old_row]
             row = f"({', '.join([str(x) for x in row])})"
             step_vals.append(row)
-        step_cols = f"{', '.join([str(x) for x in step_cols])}"
+
         step_vals = f"{', '.join([str(x) for x in step_vals])}"
         if step_vals:
             notes_sql_str = f'INSERT INTO {steps_table} ({step_cols}) VALUES {step_vals};'
@@ -194,16 +193,16 @@ def add_recipe(recipe):
         # ---------------------------------------------------------------------
         ##### Notes table
         notes_data = recipe.get('notes')
-        notes_table_cols = ['recipe_id', 'note_num', 'note']
+        notes_table_cols = get_table_columns(conn, notes_table)
 
         # Build notes SQL
         notes_values = []
         for n, note in enumerate(notes_data, 1):
-            old_row = [recipe_id, n, note]
+            old_row = [recipe_id, n, sanitize_quotes(note)]
             row = [x if type(x) == type(1) or type(x) == type(1.1) else f"'{x}'" for x in old_row]
             row = f"({', '.join([str(x) for x in row])})"
             notes_values.append(row)
-        notes_table_cols = f"{', '.join([str(x) for x in notes_table_cols])}"
+
         notes_values = f"{', '.join([str(x) for x in notes_values])}"
         if notes_values:
             notes_sql_str = f'INSERT INTO {notes_table} ({notes_table_cols}) VALUES {notes_values};'
@@ -267,8 +266,65 @@ def add_recipe(recipe):
             nutrition_sql = sqlalchemy.text(nutrition_sql_str)
             conn.execute(nutrition_sql)
 
+        # ---------------------------------------------------------------------
+        ##### Ingredients table
+        ingredients_data = recipe.get('ingredients')
+        ingredients_cols = get_table_columns(conn, ingredients_table)
+        ingredients_list = [x['ingredient'] for x in ingredients_data]
+
+        # Get a list of all the existing ingredients
+        existing_ingredients_sql = f'SELECT "name" FROM {ingredients_table};'
+        existing_ingredients_df = pd.read_sql(existing_ingredients_sql, conn)
+        existing_ingredients = existing_ingredients_df.name.values
+
+        # Figure out which ingredients aren't in the table yet
+        new_ingredients = np.setdiff1d(ingredients_list, existing_ingredients)
+
+        # Construct the SQL statement to INSERT all rows into the table at once
+        ingr_values = []
+        ingredient_id = auto_increment(conn, ingredients_table)
+        for ing in new_ingredients:
+            old_row = [ingredient_id, sanitize_quotes(ing)]
+            row = [x if type(x) == type(1) or type(x) == type(1.1) else f"'{x}'" for x in old_row]
+            row = f"({', '.join([str(x) for x in row])})"
+            ingr_values.append(row)
+            ingredient_id += 1
+        ingr_values = f"{', '.join([str(x) for x in ingr_values])}"
+
+        # Finally RUN the SQL statement
+        sql_str = f'INSERT INTO {ingredients_table} ({ingredients_cols}) VALUES {ingr_values};'
+        conn.execute(sqlalchemy.text(sql_str))
+
+        # ---------------------------------------------------------------------
+        ##### Recipe Ingredients table
+        # Use ingredients data from above!
+        recipe_ingredients_cols = get_table_columns(conn, recipe_ingredients_table)
+
+        recipe_ingredients_df = pd.DataFrame.from_dict(ingredients_data)
+        recipe_ingredients_df['amount'] = recipe_ingredients_df['amount'].apply(pd.to_numeric)
+        recipe_ingredients_df = recipe_ingredients_df.groupby(['ingredient', 'unit']).sum().reset_index()
+        recipe_ingredients_df['ingredient'] = recipe_ingredients_df['ingredient'].apply(sanitize_quotes)
+
+        existing_ingredients_df = pd.read_sql(f'SELECT * FROM {ingredients_table};', conn)
+
+        merged_df = pd.merge(existing_ingredients_df, recipe_ingredients_df, how='left', left_on='name', right_on='ingredient')
+        merged_df['recipe_id'] = recipe_id
+        ingredient_ids = merged_df['id']
+        ingredient_unit = merged_df['unit']
+        ingredient_amount = merged_df['amount']
+        recipe_ingr_values = []
+        for _id, _unit, _amount in zip(ingredient_ids, ingredient_unit, ingredient_amount):
+            recipe_ingr_values.append(f"({recipe_id}, {_id}, '{_unit}', {_amount})")
+        recipe_ingr_values = ', '.join([x for x in recipe_ingr_values])
+        sql_str = f'INSERT INTO {recipe_ingredients_table} ({recipe_ingredients_cols}) VALUES {recipe_ingr_values};'
+        conn.execute(sqlalchemy.text(sql_str))
 
 
+
+# # Add a recipe to the database
+url = 'https://www.allrecipes.com/recipe/269274/pavlova-with-winter-fruits/'
+recipe = allrecipe.scrape_one_allrecipe(url)
+add_recipe(recipe)
 
 
 # ALTER TABLE "betonk/potential-robot"."nutrition"
@@ -285,126 +341,9 @@ def add_recipe(recipe):
 # TRUNCATE TABLE "betonk/potential-robot"."steps";
 
 
-# def truncate_tables():
-
-
-
-# def recipe_update(recipe):
-#     engine = sqlalchemy.create_engine(os.environ.get('BIT_CON'),
-#                                       isolation_level='AUTOCOMMIT')
-#     bitio_repo = os.environ.get('BIT_REPO')
-
-#     with engine.connect() as conn:
-#         select_hash = f'UPDATE "{bitio_repo}"."{recipe_table}" SET ... = ... WHERE ... = ... ;'
-
-url = 'https://www.allrecipes.com/recipe/26661/stuffed-cabbage-rolls/'
+# url = 'https://www.allrecipes.com/recipe/26661/stuffed-cabbage-rolls/'
 # url = 'https://www.allrecipes.com/recipe/132833/guluptsie-cabbage-rolls/'
 # url = 'https://www.allrecipes.com/recipe/216878/koulibiaka/'
-recipe = allrecipe.scrape_one_allrecipe(url)
-
-# if not recipe_exists(recipe):# or (recipe_exists(recipe) and recipe_changed(recipe)):
-    # recipe_id = recipe_add(recipe)
-    # steps_add(recipe, recipe_id)
-add_recipe(recipe)
-    # notes_add(recipe, recipe_id)
-# elif :
-    # recipe_add(recipe)
-# recipe_add(recipe)
-# if recipe_exists(recipe):
-#     print('exists')
-# if recipe_changed(recipe):
-#     print('changed')
-# print('recipe added?')
-# current_ingredients = SELECT * FROM
-
-# for ing in recipe.get('ingredients'):
-#     name = ing.get('ingredient')
-
-
-# increment_ids =
-
-### Tables
-# 'title': grab_title(soup),
-# 'url': url,
-# 'rating': grab_rating(soup),
-# 'info': grab_info_box(soup),
-# 'nutrition': grab_nutrition(soup),
-# 'ingredients': grab_ingredients(soup),
-# 'steps': grab_instructions(soup),
-# 'notes': grab_notes(soup),
-
-# recipe: id, title, url, rating
-# recipe_info: recipe_id, prep, cook, additional, total, servings, yield
-# ingredients: id, name
-# recipe_ingredients: recipe_id, ingredient_id, unit, amount
-# steps: recipe_id, step_num, step
-# notes: recipe_id, note
-# nutrition: recipe_id, contents
-
-
-# info_list = []
-
-# rec_dir = r'/mnt/data_projects/potential-robot/temp'
-# os.curdir = rec_dir
-# jsons = os.listdir(rec_dir)
-
-# for i, js in enumerate(jsons):
-#     with open(os.path.join(rec_dir, js), 'r') as j:
-#         recipe = json.load(j)
-#         info = recipe.get('info')
-#         try:
-#             for k in info.keys():
-#                 info_list.append(k)
-#         except:
-#             pass
-#     print(i+1)
-
-# uniques = list(set(info_list))
-# print(uniques)
-
-
-# nutri_list = []
-# import string
-
-# only_chars = string.ascii_lowercase
-
-# rec_dir = r'/mnt/data_projects/potential-robot/temp'
-# os.curdir = rec_dir
-# jsons = os.listdir(rec_dir)
-
-# for i, js in enumerate(jsons):
-#     with open(os.path.join(rec_dir, js), 'r') as j:
-#         recipe = json.load(j)
-#         try:
-#             info = recipe.get('nutrition')[0].lower()
-#             # Split the macro nutrient groups at ';'
-#             components = [x.lstrip().rstrip() for x in info.split(';')]
-#             for comp in components:
-#                 unit = None
-#                 # Split the nutrient unit from the amount
-#                 parts = comp.split(' ')
-#                 # Check which part of the split is the nutrient unit
-#                 for par in parts:
-#                     checkr = []
-#                     for p in par:
-#                         if p in only_chars:
-#                             checkr.append(True)
-#                         else:
-#                             checkr.append(False)
-#                     if all(checkr):
-#                         unit = par
-#                 nutri_list.append(unit)
 
 
 
-#             # for k in info.keys():
-#             #     nutri_list.append(k)
-#         except:
-#             pass
-#     print(i+1)
-
-# uniques = list(set(nutri_list))
-# print(uniques)
-
-# for un in uniques:
-#     print(un, nutri_list.count(un))
