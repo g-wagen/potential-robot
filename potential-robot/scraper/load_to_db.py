@@ -15,7 +15,6 @@ import numpy as np
 
 dotenv.load_dotenv()
 
-
 # def allrecipes_exists(url):
 #     response = requests.get(url, headers=random_header())
 #     return False if response.status_code > 399 else True
@@ -243,6 +242,7 @@ def ingredients_to_table(connection, table, **recipe):
         connection.execute(sqlalchemy.text(sql_str))
 
 def recipe_ingredients_to_table(connection, rcp_ingr_table, ingr_table, recipe_id, **recipe):
+    """Writes the recipe ingredients to the database while trying to avoid duplicates"""
     ingredients_data = recipe.get('ingredients')
     columns = sql_table_columns(['recipe_id', 'ingredient_id', 'unit', 'amount'])
 
@@ -353,18 +353,23 @@ def add_recipe(recipe):
     else:
         print(f'Adding {title}')
         with engine.connect() as conn:
-            # TODO: 1. This code is horrible. A lot of stuff repeats here.
-
             # Tables
-            recipe_table = f'"{bitio_repo}"."{tables.get("recipe")}"'  # Recipes
-            recipe_info_table = f'"{bitio_repo}"."{tables.get("info")}"'  # Recipe Info
-            steps_table = f'"{bitio_repo}"."{tables.get("steps")}"'  # Steps
-            notes_table = f'"{bitio_repo}"."{tables.get("notes")}"'  # Notes
-            nutrition_table = f'"{bitio_repo}"."{tables.get("nutri")}"'  # Nutrition
-            ingredients_table = f'"{bitio_repo}"."{tables.get("ingr")}"'  # Ingredients
-            recipe_ingredients_table = f'"{bitio_repo}"."{tables.get("reci_ingr")}"'  # Recipe Ingredients
 
-            # ---------------------------------------------------------------------
+            # Recipes
+            recipe_table = f'"{bitio_repo}"."{tables.get("recipe")}"'
+            # Recipe Info
+            recipe_info_table = f'"{bitio_repo}"."{tables.get("info")}"'
+            # Steps
+            steps_table = f'"{bitio_repo}"."{tables.get("steps")}"'
+            # Notes
+            notes_table = f'"{bitio_repo}"."{tables.get("notes")}"'
+            # Nutrition
+            nutrition_table = f'"{bitio_repo}"."{tables.get("nutri")}"'
+            # Ingredients
+            ingredients_table = f'"{bitio_repo}"."{tables.get("ingr")}"'
+            # Recipe Ingredients
+            recipe_ingredients_table = f'"{bitio_repo}"."{tables.get("reci_ingr")}"'
+
             # Recipe table
             recipe_id = recipe_to_table(conn, recipe_table, **recipe)
 
@@ -386,21 +391,22 @@ def add_recipe(recipe):
             # Recipe Ingredients table
             recipe_ingredients_to_table(conn, recipe_ingredients_table, ingredients_table, recipe_id, **recipe)
 
+# TESTING, ETC
 
 # # Add a recipe to the database
 # url = 'https://www.allrecipes.com/recipe/269274/pavlova-with-winter-fruits/'
 # recipe = allrecipe.scrape_one_allrecipe(url)
 # clear_all_tables()
 
-recipe_path = os.path.join('..', '..', 'temp1')
-num_recipes = len(os.listdir(recipe_path))
-for i, item in enumerate(os.listdir(recipe_path), 1):
-    recipe_json = os.path.join(recipe_path, item)
-    print(i, '/', num_recipes, '-', recipe_json)
-    with open(recipe_json, 'r') as r:
-        add_recipe(json.load(r))
-#     print(recipe_json)
+# recipe_path = os.path.join('..', '..', 'temp1')
+# num_recipes = len(os.listdir(recipe_path))
+# for i, item in enumerate(os.listdir(recipe_path), 1):
+#     recipe_json = os.path.join(recipe_path, item)
+#     print(i, '/', num_recipes, '-', recipe_json)
+#     with open(recipe_json, 'r') as r:
+#         add_recipe(json.load(r))
 
+#     print(recipe_json)
 
 # with open('/mnt/data_projects/potential-robot/temp/3_cheese_enchiladas.json', 'r') as r:
 #     add_recipe(json.load(r))
