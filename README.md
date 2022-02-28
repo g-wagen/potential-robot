@@ -1,9 +1,10 @@
 # Working title: potential-robot
 
+## Description
 Ever felt the pain when you had a few cooking ingredients at home but no idea what to cook from them?
 
 I'm planning to help out with this project.
-The plan is to deploy a Web-App where you get recipe recommendations based on what's in your pantry.
+The plan is to deploy a Web-App where you get recipe recommendations based on your available ingredients.
 
 This is a work in progress, but feel free to check it out anyway.
 
